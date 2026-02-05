@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "DOI Fix",
+  "version": "1.0.0",
+  "description": "Automatically retrieve and validate DOIs for Zotero items using CrossRef API. Compatible with Zotero 7/8.",
+  "author": "Claude AI",
+  "homepage_url": "https://github.com/pandaAIGC/zotero-doi-fix",
+
+  "applications": {
+    "zotero": {
+      "id": "doi-fix@zotero.org",
+      "update_url": "https://raw.githubusercontent.com/pandaAIGC/zotero-doi-fix/main/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "8.*"
+    }
+  },
+
+  "icons": {
+    "48": "icons/icon@48.png",
+    "96": "icons/icon@96.png"
+  }
+}
