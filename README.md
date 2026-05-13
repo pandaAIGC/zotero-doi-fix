@@ -159,6 +159,9 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.3 (2026-05-13)
+- Added the plugin icon to the Zotero DOI Fix context submenu.
+
 ### Version 1.1.2 (2026-05-13)
 - Grouped Retrieve DOI, Update DOI, and Validate DOI under a single Zotero DOI Fix submenu.
 

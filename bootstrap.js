@@ -6,6 +6,7 @@ var addonData = null;
 var doiManager = {};
 var menuRegistrationID = null;
 var FTL_FILE = "doi-fix.ftl";
+var MENU_ICON = "icons/icon@48.png";
 
 function install(data, reason) {
   Zotero.debug("DOI Fix: Installing");
@@ -108,6 +109,7 @@ function registerManagedMenu() {
       {
         menuType: "submenu",
         l10nID: "doi-fix-menu-root",
+        icon: addonData.rootURI + MENU_ICON,
         menus: [
           {
             menuType: "menuitem",
@@ -156,6 +158,8 @@ function registerDOMMenuItems(win) {
   let rootMenu = createMenuElement(doc, "menu");
   rootMenu.id = "doi-fix-root-menu";
   rootMenu.setAttribute("label", "Zotero DOI Fix");
+  rootMenu.setAttribute("class", "menu-iconic");
+  rootMenu.setAttribute("image", addonData.rootURI + MENU_ICON);
 
   let popup = createMenuElement(doc, "menupopup");
   popup.id = "doi-fix-root-popup";
