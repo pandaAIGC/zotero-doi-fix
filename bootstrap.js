@@ -5,6 +5,7 @@
 var addonData = null;
 var doiManager = {};
 var menuRegistrationID = null;
+var FTL_FILE = "doi-fix.ftl";
 
 function install(data, reason) {
   Zotero.debug("DOI Fix: Installing");
@@ -23,6 +24,7 @@ async function startup({ id, version, rootURI }, reason) {
     });
 
     await doiManager.init(addonData);
+    loadFTLIntoOpenWindows();
     registerMenuItems();
 
     Zotero.debug("DOI Fix: Started successfully");
@@ -54,6 +56,8 @@ function uninstall(data, reason) {
 }
 
 function onMainWindowLoad({ window }) {
+  loadFTL(window);
+
   if (!hasMenuManager()) {
     registerDOMMenuItems(window);
   }
@@ -104,28 +108,20 @@ function registerManagedMenu() {
       {
         menuType: "menuitem",
         l10nID: "doi-fix-menu-retrieve",
-        onShowing: setVisibleForRegularItems,
         onCommand: () => runMenuCommand("retrieveDOIForSelectedItems"),
       },
       {
         menuType: "menuitem",
         l10nID: "doi-fix-menu-update",
-        onShowing: setVisibleForRegularItems,
         onCommand: () => runMenuCommand("updateDOIForSelectedItems"),
       },
       {
         menuType: "menuitem",
         l10nID: "doi-fix-menu-validate",
-        onShowing: setVisibleForRegularItems,
         onCommand: () => runMenuCommand("validateDOIForSelectedItems"),
       },
     ],
   });
-}
-
-function setVisibleForRegularItems(event, context) {
-  let items = context.items || [];
-  context.setVisible(items.some((item) => item.isRegularItem() && !item.isFeedItem));
 }
 
 async function runMenuCommand(methodName) {
@@ -138,6 +134,8 @@ async function runMenuCommand(methodName) {
 }
 
 function registerDOMMenuItems(win) {
+  loadFTL(win);
+
   let doc = win.document;
   let menu = doc.getElementById("zotero-itemmenu");
 
@@ -176,4 +174,16 @@ function createMenuElement(doc, tagName) {
   }
 
   return doc.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", tagName);
+}
+
+function loadFTLIntoOpenWindows() {
+  for (let win of Zotero.getMainWindows()) {
+    loadFTL(win);
+  }
+}
+
+function loadFTL(win) {
+  if (win.MozXULElement) {
+    win.MozXULElement.insertFTLIfNeeded(FTL_FILE);
+  }
 }

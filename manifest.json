@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "DOI Fix",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Automatically retrieve and validate DOIs for Zotero items using the Crossref API. Compatible with Zotero 7, 8, and 9.",
   "author": "pandaAIGC",
   "homepage_url": "https://github.com/pandaAIGC/zotero-doi-fix",

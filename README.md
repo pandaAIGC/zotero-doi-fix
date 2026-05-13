@@ -159,6 +159,10 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.1 (2026-05-13)
+- Fixed item context menu entries not appearing in some Zotero 9 builds.
+- Load Fluent menu labels into existing Zotero windows before registering menus.
+
 ### Version 1.1.0 (2026-05-13)
 - Updated compatibility metadata for Zotero 9
 - Added Zotero 8/9 `Zotero.MenuManager` menu registration with Zotero 7 DOM fallback
