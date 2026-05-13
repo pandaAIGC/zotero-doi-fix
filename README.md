@@ -159,6 +159,9 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.2 (2026-05-13)
+- Grouped Retrieve DOI, Update DOI, and Validate DOI under a single Zotero DOI Fix submenu.
+
 ### Version 1.1.1 (2026-05-13)
 - Fixed item context menu entries not appearing in some Zotero 9 builds.
 - Load Fluent menu labels into existing Zotero windows before registering menus.

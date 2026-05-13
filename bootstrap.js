@@ -106,19 +106,25 @@ function registerManagedMenu() {
     target: "main/library/item",
     menus: [
       {
-        menuType: "menuitem",
-        l10nID: "doi-fix-menu-retrieve",
-        onCommand: () => runMenuCommand("retrieveDOIForSelectedItems"),
-      },
-      {
-        menuType: "menuitem",
-        l10nID: "doi-fix-menu-update",
-        onCommand: () => runMenuCommand("updateDOIForSelectedItems"),
-      },
-      {
-        menuType: "menuitem",
-        l10nID: "doi-fix-menu-validate",
-        onCommand: () => runMenuCommand("validateDOIForSelectedItems"),
+        menuType: "submenu",
+        l10nID: "doi-fix-menu-root",
+        menus: [
+          {
+            menuType: "menuitem",
+            l10nID: "doi-fix-menu-retrieve",
+            onCommand: () => runMenuCommand("retrieveDOIForSelectedItems"),
+          },
+          {
+            menuType: "menuitem",
+            l10nID: "doi-fix-menu-update",
+            onCommand: () => runMenuCommand("updateDOIForSelectedItems"),
+          },
+          {
+            menuType: "menuitem",
+            l10nID: "doi-fix-menu-validate",
+            onCommand: () => runMenuCommand("validateDOIForSelectedItems"),
+          },
+        ],
       },
     ],
   });
@@ -139,7 +145,7 @@ function registerDOMMenuItems(win) {
   let doc = win.document;
   let menu = doc.getElementById("zotero-itemmenu");
 
-  if (!menu || doc.getElementById("doi-fix-retrieve")) {
+  if (!menu || doc.getElementById("doi-fix-root-menu")) {
     return;
   }
 
@@ -147,15 +153,31 @@ function registerDOMMenuItems(win) {
   separator.id = "doi-fix-separator";
   menu.appendChild(separator);
 
-  menu.appendChild(createDOMMenuItem(doc, "doi-fix-retrieve", "Retrieve DOI", "retrieveDOIForSelectedItems"));
-  menu.appendChild(createDOMMenuItem(doc, "doi-fix-update", "Update DOI", "updateDOIForSelectedItems"));
-  menu.appendChild(createDOMMenuItem(doc, "doi-fix-validate", "Validate DOI", "validateDOIForSelectedItems"));
+  let rootMenu = createMenuElement(doc, "menu");
+  rootMenu.id = "doi-fix-root-menu";
+  rootMenu.setAttribute("label", "Zotero DOI Fix");
+
+  let popup = createMenuElement(doc, "menupopup");
+  popup.id = "doi-fix-root-popup";
+  popup.appendChild(createDOMMenuItem(doc, "doi-fix-retrieve", "Retrieve DOI", "retrieveDOIForSelectedItems"));
+  popup.appendChild(createDOMMenuItem(doc, "doi-fix-update", "Update DOI", "updateDOIForSelectedItems"));
+  popup.appendChild(createDOMMenuItem(doc, "doi-fix-validate", "Validate DOI", "validateDOIForSelectedItems"));
+
+  rootMenu.appendChild(popup);
+  menu.appendChild(rootMenu);
 }
 
 function unregisterDOMMenuItems(win) {
   let doc = win.document;
 
-  for (let id of ["doi-fix-separator", "doi-fix-retrieve", "doi-fix-update", "doi-fix-validate"]) {
+  for (let id of [
+    "doi-fix-separator",
+    "doi-fix-root-menu",
+    "doi-fix-root-popup",
+    "doi-fix-retrieve",
+    "doi-fix-update",
+    "doi-fix-validate",
+  ]) {
     doc.getElementById(id)?.remove();
   }
 }

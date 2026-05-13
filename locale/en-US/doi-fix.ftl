@@ -1,3 +1,5 @@
+doi-fix-menu-root =
+    .label = Zotero DOI Fix
 doi-fix-menu-retrieve =
     .label = Retrieve DOI
 doi-fix-menu-update =
