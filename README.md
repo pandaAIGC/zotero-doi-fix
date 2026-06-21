@@ -159,6 +159,11 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.4 (2026-06-21)
+- Fixed unsafe Crossref fallback that could write an incorrect DOI from the first search result.
+- Added stricter DOI candidate matching, Crossref OpenURL resolved-only handling, simple failure tags, and old DOI backup before replacement.
+- Added Node-based regression tests for DOI matching and Crossref result handling.
+
 ### Version 1.1.3 (2026-05-13)
 - Added the plugin icon to the Zotero DOI Fix context submenu.
 

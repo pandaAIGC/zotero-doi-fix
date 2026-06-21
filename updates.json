@@ -3,9 +3,9 @@
     "doi-fix@zotero.org": {
       "updates": [
         {
-          "version": "1.1.3",
-          "update_link": "https://github.com/pandaAIGC/zotero-doi-fix/releases/download/v1.1.3/zotero-doi-fix.xpi",
-          "update_hash": "sha256:7b83ed712159c4a0c7d59e6d873813b7e2be52455bf73f0a055ce3bf018c3aa6",
+          "version": "1.1.4",
+          "update_link": "https://github.com/pandaAIGC/zotero-doi-fix/releases/download/v1.1.4/zotero-doi-fix.xpi",
+          "update_hash": "sha256:133abba489315e562caddbc814a4fd65596f4ffa89c4450b34c5e835a9fb444c",
           "applications": {
             "zotero": {
               "strict_min_version": "7.0",
