@@ -159,6 +159,11 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.5 (2026-06-22)
+- Added support for DOI retrieval on Zotero webpage items, saving DOIs to the Extra field when the item type has no native DOI field.
+- Added a Crossref retry without year filtering when the year-filtered results are low confidence, covering online-first articles with different issue years.
+- Added regression tests for webpage DOI storage and online-first year fallback.
+
 ### Version 1.1.4 (2026-06-21)
 - Fixed unsafe Crossref fallback that could write an incorrect DOI from the first search result.
 - Added stricter DOI candidate matching, Crossref OpenURL resolved-only handling, simple failure tags, and old DOI backup before replacement.

@@ -47,6 +47,10 @@ function loadManager(options = {}) {
     book: 2,
     webpage: 3,
   };
+  const itemFields = {
+    DOI: 1,
+    extra: 2,
+  };
 
   const context = {
     doiManager: {},
@@ -65,6 +69,18 @@ function loadManager(options = {}) {
       ItemTypes: {
         getID(type) {
           return Object.prototype.hasOwnProperty.call(itemTypes, type) ? itemTypes[type] : false;
+        },
+      },
+      ItemFields: {
+        getID(field) {
+          return Object.prototype.hasOwnProperty.call(itemFields, field) ? itemFields[field] : false;
+        },
+        isValidForType(fieldID, itemTypeID) {
+          if (fieldID === itemFields.DOI && (options.invalidDoiTypeIDs || []).includes(itemTypeID)) {
+            return false;
+          }
+
+          return true;
         },
       },
     },
@@ -157,6 +173,45 @@ async function testRestCanSelectLaterConfidentMatch() {
   assert.strictEqual(doi, "10.0000/correct");
 }
 
+async function testRestRetriesWithoutYearFilterWhenFilteredResultsAreWeak() {
+  const urls = [];
+  const responses = [
+    {
+      message: {
+        items: [{
+          DOI: "10.0000/weak",
+          title: ["Educational attainment, structural brain reserve and Alzheimer's disease"],
+        }],
+      },
+    },
+    {
+      message: {
+        items: [{
+          DOI: "10.1093/ije/dyab208",
+          title: ["Interpreting Mendelian-randomization estimates of the effects of categorical exposures such as disease status and educational attainment"],
+        }],
+      },
+    },
+  ];
+  const manager = loadManager({
+    openURL: false,
+    request: async (_method, url) => {
+      urls.push(url);
+      return { response: JSON.stringify(responses.shift()) };
+    },
+  });
+
+  const doi = await manager.searchCrossrefRest(
+    "Interpreting Mendelian-randomization estimates of the effects of categorical exposures such as disease status and educational attainment",
+    [],
+    "2022"
+  );
+
+  assert.strictEqual(doi, "10.1093/ije/dyab208");
+  assert.ok(urls[0].includes("filter="));
+  assert.ok(!urls[1].includes("filter="));
+}
+
 async function testOpenURLResolvedReturnsDOI() {
   const manager = loadManager({
     request: async () => ({
@@ -194,7 +249,7 @@ function testSupportedItemFiltering() {
     makeItem({ itemTypeID: 1, isRegularItem: false }),
   ];
 
-  assert.deepStrictEqual(manager.getRegularItems(items), [items[0], items[1]]);
+  assert.deepStrictEqual(manager.getRegularItems(items), [items[0], items[1], items[2]]);
 }
 
 function testTitleSimilarityBoundaries() {
@@ -278,10 +333,28 @@ function testSearchFailureTagsAreSimpleAndExclusive() {
   assert.strictEqual(item.hasTag("doi-fix:multiple-candidates"), true);
 }
 
+function testWebpageStoresDOIInExtraWhenDOIFieldIsUnavailable() {
+  const manager = loadManager({ invalidDoiTypeIDs: [3] });
+  const item = makeItem({
+    itemTypeID: 3,
+    fields: {
+      DOI: "",
+      extra: "Publisher page",
+    },
+  });
+
+  const storageLocation = manager.setStoredDOI(item, "https://doi.org/10.1093/ije/dyab208");
+
+  assert.strictEqual(storageLocation, "extra");
+  assert.strictEqual(item._fields.extra, "Publisher page\nDOI: 10.1093/ije/dyab208");
+  assert.strictEqual(manager.getStoredDOI(item), "10.1093/ije/dyab208");
+}
+
 async function run() {
   const tests = [
     testRestDoesNotUseFirstResultFallback,
     testRestCanSelectLaterConfidentMatch,
+    testRestRetriesWithoutYearFilterWhenFilteredResultsAreWeak,
     testOpenURLResolvedReturnsDOI,
     testOpenURLMultiresolvedDoesNotFallbackToRest,
     testSupportedItemFiltering,
@@ -290,6 +363,7 @@ async function run() {
     testValidateDOIForItemAcceptsMatchingTitle,
     testBackupOldDOIAddsSingleExtraLine,
     testSearchFailureTagsAreSimpleAndExclusive,
+    testWebpageStoresDOIInExtraWhenDOIFieldIsUnavailable,
   ];
 
   for (const test of tests) {

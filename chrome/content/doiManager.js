@@ -39,6 +39,7 @@ if (typeof doiManager === "undefined") {
     "dictionaryEntry",
     "magazineArticle",
     "newspaperArticle",
+    "webpage",
   ];
 
   /**
@@ -92,7 +93,7 @@ if (typeof doiManager === "undefined") {
         const title = item.getField('title') || '(Untitled)';
         progressWindow.addLines(`Processing: ${title.substring(0, 50)}...`);
 
-        const existingDOI = item.getField('DOI');
+        const existingDOI = this.getStoredDOI(item);
         if (existingDOI && existingDOI.trim()) {
           skippedCount++;
           progressWindow.addLines(`Existing DOI, skipped: ${existingDOI.trim()}`);
@@ -102,11 +103,11 @@ if (typeof doiManager === "undefined") {
         const result = await this.retrieveDOIResult(item);
 
         if (result.doi) {
-          item.setField('DOI', result.doi);
+          const storageLocation = this.setStoredDOI(item, result.doi);
           this.clearDoiFixTags(item);
           await item.saveTx();
           successCount++;
-          progressWindow.addLines(`Found DOI: ${result.doi} (${result.source})`);
+          progressWindow.addLines(`Found DOI: ${result.doi} (${result.source}${storageLocation === "extra" ? ", saved to Extra" : ""})`);
         } else {
           failCount++;
           this.tagSearchFailure(item, result.status);
@@ -135,7 +136,7 @@ if (typeof doiManager === "undefined") {
   doiManager.retrieveDOIResult = async function(item, forceUpdate = false) {
     // Check if item already has a DOI (skip if forceUpdate is false)
     if (!forceUpdate) {
-      const existingDOI = item.getField('DOI');
+      const existingDOI = this.getStoredDOI(item);
       if (existingDOI && existingDOI.trim()) {
         return {
           doi: this.cleanDOI(existingDOI),
@@ -190,7 +191,7 @@ if (typeof doiManager === "undefined") {
     for (const item of validItems) {
       try {
         const title = item.getField('title') || '(Untitled)';
-        const oldDOI = item.getField('DOI');
+        const oldDOI = this.getStoredDOI(item);
 
         progressWindow.addLines(`Processing: ${title.substring(0, 50)}...`);
 
@@ -226,11 +227,11 @@ if (typeof doiManager === "undefined") {
             progressWindow.addLines(`DOI unchanged: ${result.doi}`);
           } else {
             this.backupOldDOI(item, oldDOI);
-            item.setField('DOI', result.doi);
+            const storageLocation = this.setStoredDOI(item, result.doi);
             this.clearDoiFixTags(item);
             await item.saveTx();
             successCount++;
-            progressWindow.addLines(`Updated DOI: ${result.doi} (${result.source})`);
+            progressWindow.addLines(`Updated DOI: ${result.doi} (${result.source}${storageLocation === "extra" ? ", saved to Extra" : ""})`);
           }
         } else {
           failCount++;
@@ -336,6 +337,31 @@ if (typeof doiManager === "undefined") {
   };
 
   doiManager.searchCrossrefRestCandidate = async function(title, creators, date) {
+    const year = this.extractYear(date);
+    const attempts = year ? [year, ""] : [""];
+    let bestUnresolved = null;
+
+    for (const attemptYear of attempts) {
+      const result = await this.searchCrossrefRestCandidateOnce(title, creators, attemptYear);
+
+      if (result.status === "resolved") {
+        return result;
+      }
+
+      if (!bestUnresolved || ((result.score || 0) > (bestUnresolved.score || 0))) {
+        bestUnresolved = result;
+      }
+    }
+
+    return bestUnresolved || {
+      doi: null,
+      status: "not-found",
+      source: "crossref-rest",
+      message: "Crossref REST returned no candidates",
+    };
+  };
+
+  doiManager.searchCrossrefRestCandidateOnce = async function(title, creators, year) {
     const params = new URLSearchParams({
       "query.title": title,
       rows: "5",
@@ -349,7 +375,6 @@ if (typeof doiManager === "undefined") {
       }
     }
 
-    const year = this.extractYear(date);
     if (year) {
       params.set("filter", `from-pub-date:${year},until-pub-date:${year}`);
     }
@@ -552,7 +577,7 @@ if (typeof doiManager === "undefined") {
     for (const item of items) {
       if (!item.isRegularItem()) continue;
 
-      const doi = item.getField('DOI');
+      const doi = this.getStoredDOI(item);
 
       if (!doi || !doi.trim()) {
         const title = item.getField('title') || '(Untitled)';
@@ -700,7 +725,7 @@ if (typeof doiManager === "undefined") {
       return;
     }
 
-    const extra = item.getField('extra') || '';
+    const extra = this.getItemField(item, 'extra') || '';
     const backupLine = `${OLD_DOI_BACKUP_PREFIX} ${cleanOldDOI}`;
 
     if (extra.includes(backupLine)) {
@@ -708,6 +733,104 @@ if (typeof doiManager === "undefined") {
     }
 
     item.setField('extra', extra ? `${extra}\n${backupLine}` : backupLine);
+  };
+
+  doiManager.getStoredDOI = function(item) {
+    const doiFieldValue = this.getItemField(item, 'DOI');
+
+    if (doiFieldValue) {
+      return this.cleanDOI(doiFieldValue);
+    }
+
+    return this.extractDOIFromExtra(this.getItemField(item, 'extra'));
+  };
+
+  doiManager.setStoredDOI = function(item, doi) {
+    const cleanDOI = this.cleanDOI(doi);
+
+    if (!cleanDOI) {
+      return "";
+    }
+
+    if (this.itemSupportsField(item, 'DOI')) {
+      item.setField('DOI', cleanDOI);
+      return "field";
+    }
+
+    this.setExtraDOI(item, cleanDOI);
+    return "extra";
+  };
+
+  doiManager.getItemField = function(item, fieldName) {
+    if (!item || !item.getField) {
+      return '';
+    }
+
+    try {
+      return item.getField(fieldName) || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  doiManager.itemSupportsField = function(item, fieldName) {
+    if (!item || !item.setField) {
+      return false;
+    }
+
+    try {
+      if (!Zotero.ItemFields || !Zotero.ItemFields.getID || !Zotero.ItemFields.isValidForType) {
+        return true;
+      }
+
+      const fieldID = Zotero.ItemFields.getID(fieldName);
+
+      if (!fieldID) {
+        return false;
+      }
+
+      return !!Zotero.ItemFields.isValidForType(fieldID, item.itemTypeID);
+    } catch (e) {
+      return true;
+    }
+  };
+
+  doiManager.extractDOIFromExtra = function(extra) {
+    const lines = String(extra || '').split(/\r?\n/);
+
+    for (const line of lines) {
+      const match = line.match(/^\s*DOI:\s*(.+?)\s*$/i);
+
+      if (match) {
+        return this.cleanDOI(match[1]);
+      }
+    }
+
+    return '';
+  };
+
+  doiManager.setExtraDOI = function(item, doi) {
+    const cleanDOI = this.cleanDOI(doi);
+    const extra = this.getItemField(item, 'extra');
+    const lines = String(extra || '').split(/\r?\n/).filter((line, index, array) => {
+      return line || index < array.length - 1;
+    });
+    let replaced = false;
+
+    const updatedLines = lines.map(line => {
+      if (/^\s*DOI:\s*/i.test(line)) {
+        replaced = true;
+        return `DOI: ${cleanDOI}`;
+      }
+
+      return line;
+    });
+
+    if (!replaced) {
+      updatedLines.push(`DOI: ${cleanDOI}`);
+    }
+
+    item.setField('extra', updatedLines.join('\n'));
   };
 
   doiManager.getRegularItems = function(items) {
