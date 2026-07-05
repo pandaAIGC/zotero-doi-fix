@@ -1,6 +1,6 @@
 /**
  * DOI Fix Core Functionality
- * Compatible with Zotero 7/8/9
+ * Compatible with Zotero 7/8/9/10
  */
 
 if (typeof doiManager === "undefined") {

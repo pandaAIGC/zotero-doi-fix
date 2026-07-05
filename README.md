@@ -1,9 +1,9 @@
 # DOI Fix for Zotero
 
-[![Zotero](https://img.shields.io/badge/Zotero-7%2F8%2F9-CC2936)](https://www.zotero.org/)
+[![Zotero](https://img.shields.io/badge/Zotero-7%2F8%2F9%2F10-CC2936)](https://www.zotero.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Automatically retrieve, update, and validate DOIs for Zotero items using the Crossref API. Compatible with Zotero 7, Zotero 8, and Zotero 9.
+Automatically retrieve, update, and validate DOIs for Zotero items using the Crossref API. Compatible with Zotero 7, Zotero 8, Zotero 9, and Zotero 10.
 
 ## Features
 
@@ -13,7 +13,7 @@ Automatically retrieve, update, and validate DOIs for Zotero items using the Cro
 - ✅ **Batch Processing**: Process multiple items at once
 - ✅ **Progress Feedback**: Real-time progress window showing success/failure status
 - ✅ **Context Menu Integration**: Right-click access from Zotero's item menu
-- ✅ **Zotero 7/8/9 Compatible**: Built using modern bootstrap architecture
+- ✅ **Zotero 7/8/9/10 Compatible**: Built using modern bootstrap architecture
 
 ## Installation
 
@@ -100,6 +100,7 @@ This plugin uses the [Crossref REST API](https://www.crossref.org/documentation/
 - **Zotero 7**: ✅ Supported
 - **Zotero 8**: ✅ Supported
 - **Zotero 9**: ✅ Supported
+- **Zotero 10**: ✅ Supported
 - **Zotero 6 and below**: ❌ Not supported (use legacy DOI Manager)
 
 ## Development
@@ -115,7 +116,7 @@ zotero-doi-fix/
 ├── icons/                # Plugin icons
 │   ├── icon@48.png
 │   └── icon@96.png
-├── locale/               # Menu labels for Zotero 8/9 MenuManager
+├── locale/               # Menu labels for Zotero 8/9/10 MenuManager
 │   ├── en-US/
 │   └── zh-CN/
 └── chrome/
@@ -131,6 +132,9 @@ build.bat
 
 # PowerShell directly
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
+
+# Build and refresh updates.json with the XPI hash for release
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -UpdateManifest
 ```
 
 ## Contributing
@@ -158,6 +162,10 @@ MIT License - see [LICENSE](LICENSE) file for details
 If you encounter any issues or have suggestions, please [open an issue](https://github.com/pandaAIGC/zotero-doi-fix/issues).
 
 ## Changelog
+
+### Version 1.1.6 (2026-07-05)
+- Updated plugin compatibility metadata, update manifest, and documentation for Zotero 10.
+- Added a regression test for manifest/update compatibility metadata so release packages stay aligned.
 
 ### Version 1.1.5 (2026-06-22)
 - Added support for DOI retrieval on Zotero webpage items, saving DOIs to the Extra field when the item type has no native DOI field.

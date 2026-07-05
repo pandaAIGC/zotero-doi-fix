@@ -7,6 +7,11 @@ var doiManager = {};
 var menuRegistrationID = null;
 var FTL_FILE = "doi-fix.ftl";
 var MENU_ICON = "icons/icon@48.png";
+var ITEM_MENU_ID = "zotero-itemmenu";
+var ROOT_MENU_ID = "doi-fix-root-menu";
+var ROOT_MENU_L10N_ID = "doi-fix-menu-root";
+var DOM_SEPARATOR_ID = "doi-fix-separator";
+var POSITION_SEPARATOR_ID = "doi-fix-position-separator";
 
 function install(data, reason) {
   Zotero.debug("DOI Fix: Installing");
@@ -62,9 +67,13 @@ function onMainWindowLoad({ window }) {
   if (!hasMenuManager()) {
     registerDOMMenuItems(window);
   }
+
+  registerItemMenuPositioning(window);
 }
 
 function onMainWindowUnload({ window }) {
+  unregisterItemMenuPositioning(window);
+
   if (!hasMenuManager()) {
     unregisterDOMMenuItems(window);
   }
@@ -77,12 +86,13 @@ function hasMenuManager() {
 function registerMenuItems() {
   if (hasMenuManager()) {
     registerManagedMenu();
-    return;
+  } else {
+    for (let win of Zotero.getMainWindows()) {
+      registerDOMMenuItems(win);
+    }
   }
 
-  for (let win of Zotero.getMainWindows()) {
-    registerDOMMenuItems(win);
-  }
+  registerItemMenuPositioningForOpenWindows();
 }
 
 function unregisterMenuItems() {
@@ -92,6 +102,7 @@ function unregisterMenuItems() {
   }
 
   for (let win of Zotero.getMainWindows()) {
+    unregisterItemMenuPositioning(win);
     unregisterDOMMenuItems(win);
   }
 }
@@ -145,18 +156,18 @@ function registerDOMMenuItems(win) {
   loadFTL(win);
 
   let doc = win.document;
-  let menu = doc.getElementById("zotero-itemmenu");
+  let menu = doc.getElementById(ITEM_MENU_ID);
 
-  if (!menu || doc.getElementById("doi-fix-root-menu")) {
+  if (!menu || doc.getElementById(ROOT_MENU_ID)) {
     return;
   }
 
   let separator = createMenuElement(doc, "menuseparator");
-  separator.id = "doi-fix-separator";
+  separator.id = DOM_SEPARATOR_ID;
   menu.appendChild(separator);
 
   let rootMenu = createMenuElement(doc, "menu");
-  rootMenu.id = "doi-fix-root-menu";
+  rootMenu.id = ROOT_MENU_ID;
   rootMenu.setAttribute("label", "Zotero DOI Fix");
   rootMenu.setAttribute("class", "menu-iconic");
   rootMenu.setAttribute("image", addonData.rootURI + MENU_ICON);
@@ -169,6 +180,7 @@ function registerDOMMenuItems(win) {
 
   rootMenu.appendChild(popup);
   menu.appendChild(rootMenu);
+  positionDOIFixMenu(menu);
 }
 
 function unregisterDOMMenuItems(win) {
@@ -176,6 +188,7 @@ function unregisterDOMMenuItems(win) {
 
   for (let id of [
     "doi-fix-separator",
+    POSITION_SEPARATOR_ID,
     "doi-fix-root-menu",
     "doi-fix-root-popup",
     "doi-fix-retrieve",
@@ -200,6 +213,109 @@ function createMenuElement(doc, tagName) {
   }
 
   return doc.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", tagName);
+}
+
+function registerItemMenuPositioningForOpenWindows() {
+  for (let win of Zotero.getMainWindows()) {
+    registerItemMenuPositioning(win);
+  }
+}
+
+function registerItemMenuPositioning(win) {
+  let menu = win.document.getElementById(ITEM_MENU_ID);
+
+  if (!menu || menu._doiFixPositionListener) {
+    return;
+  }
+
+  let listener = (event) => {
+    if (event.target !== menu) {
+      return;
+    }
+
+    win.setTimeout(() => positionDOIFixMenu(menu), 0);
+  };
+
+  menu.addEventListener("popupshowing", listener);
+  menu._doiFixPositionListener = listener;
+  positionDOIFixMenu(menu);
+}
+
+function unregisterItemMenuPositioning(win) {
+  let menu = win.document.getElementById(ITEM_MENU_ID);
+
+  if (!menu) {
+    return;
+  }
+
+  if (menu._doiFixPositionListener) {
+    menu.removeEventListener("popupshowing", menu._doiFixPositionListener);
+    delete menu._doiFixPositionListener;
+  }
+
+  win.document.getElementById(POSITION_SEPARATOR_ID)?.remove();
+}
+
+function positionDOIFixMenu(menu) {
+  let rootMenu = findDOIFixRootMenu(menu);
+
+  if (!rootMenu) {
+    return;
+  }
+
+  let anchor = getPreferredItemMenuAnchor(menu);
+  let separator = getOrCreateDOIFixSeparator(menu, rootMenu);
+
+  if (anchor && anchor !== separator && anchor !== rootMenu) {
+    menu.insertBefore(separator, anchor);
+    menu.insertBefore(rootMenu, anchor);
+  }
+
+  separator.hidden = rootMenu.hidden;
+  hideOrphanedCustomGroupSeparator(menu, rootMenu);
+}
+
+function findDOIFixRootMenu(menu) {
+  return menu.querySelector(`#${ROOT_MENU_ID}, [data-l10n-id="${ROOT_MENU_L10N_ID}"]`);
+}
+
+function getPreferredItemMenuAnchor(menu) {
+  return menu.querySelector(".zotero-menuitem-attach-note:not([hidden='true'])")
+    || menu.querySelector(".zotero-menuitem-toggle-read-item:not([hidden='true'])")
+    || menu.querySelector(".zotero-menuitem-add-to-collection:not([hidden='true'])");
+}
+
+function getOrCreateDOIFixSeparator(menu, rootMenu) {
+  let doc = menu.ownerDocument;
+  let separator = doc.getElementById(DOM_SEPARATOR_ID)
+    || doc.getElementById(POSITION_SEPARATOR_ID);
+
+  if (separator) {
+    return separator;
+  }
+
+  separator = createMenuElement(doc, "menuseparator");
+  separator.id = POSITION_SEPARATOR_ID;
+  menu.insertBefore(separator, rootMenu);
+  return separator;
+}
+
+function hideOrphanedCustomGroupSeparator(menu, rootMenu) {
+  let customGroupSeparator = menu.querySelector(".zotero-custom-menu-group-separator");
+
+  if (!customGroupSeparator) {
+    return;
+  }
+
+  let customMenuItems = Array.from(menu.children || menu.childNodes)
+    .filter((element) => {
+      return element.classList?.contains("zotero-custom-menu-item")
+        && element !== rootMenu
+        && element.id !== POSITION_SEPARATOR_ID
+        && !element.classList.contains("zotero-custom-menu-group-separator");
+    });
+
+  customGroupSeparator.hidden = customMenuItems.length === 0;
 }
 
 function loadFTLIntoOpenWindows() {
