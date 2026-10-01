@@ -4,7 +4,6 @@
 
 var addonData = null;
 var doiManager = {};
-var menuRegistrationID = null;
 var FTL_FILE = "doi-fix.ftl";
 var MENU_ICON = "icons/icon@48.png";
 var ITEM_MENU_ID = "zotero-itemmenu";
@@ -28,7 +27,6 @@ async function startup({ id, version, rootURI }, reason) {
     });
 
     await doiManager.init(addonData);
-    loadFTLIntoOpenWindows();
     registerMenuItems();
 
     Zotero.debug("DOI Fix: Started successfully");
@@ -60,79 +58,23 @@ function uninstall(data, reason) {
 }
 
 function onMainWindowLoad({ window }) {
-  loadFTL(window);
-
-  if (!hasMenuManager()) {
-    registerDOMMenuItems(window);
-  }
+  registerDOMMenuItems(window);
 }
 
 function onMainWindowUnload({ window }) {
-  if (!hasMenuManager()) {
-    unregisterDOMMenuItems(window);
-  }
-}
-
-function hasMenuManager() {
-  return !!(Zotero.MenuManager && Zotero.MenuManager.registerMenu);
+  unregisterDOMMenuItems(window);
 }
 
 function registerMenuItems() {
-  if (hasMenuManager()) {
-    registerManagedMenu();
-  } else {
-    for (let win of Zotero.getMainWindows()) {
-      registerDOMMenuItems(win);
-    }
+  for (let win of Zotero.getMainWindows()) {
+    registerDOMMenuItems(win);
   }
 }
 
 function unregisterMenuItems() {
-  if (menuRegistrationID && Zotero.MenuManager && Zotero.MenuManager.unregisterMenu) {
-    Zotero.MenuManager.unregisterMenu(menuRegistrationID);
-    menuRegistrationID = null;
-  }
-
   for (let win of Zotero.getMainWindows()) {
     unregisterDOMMenuItems(win);
   }
-}
-
-function registerManagedMenu() {
-  if (menuRegistrationID) {
-    return;
-  }
-
-  // Native item actions use fixed child-node indexes; let MenuManager place custom menus.
-  menuRegistrationID = Zotero.MenuManager.registerMenu({
-    menuID: "doi-fix-item-menu",
-    pluginID: addonData.id,
-    target: "main/library/item",
-    menus: [
-      {
-        menuType: "submenu",
-        l10nID: "doi-fix-menu-root",
-        icon: addonData.rootURI + MENU_ICON,
-        menus: [
-          {
-            menuType: "menuitem",
-            l10nID: "doi-fix-menu-retrieve",
-            onCommand: () => runMenuCommand("retrieveDOIForSelectedItems"),
-          },
-          {
-            menuType: "menuitem",
-            l10nID: "doi-fix-menu-update",
-            onCommand: () => runMenuCommand("updateDOIForSelectedItems"),
-          },
-          {
-            menuType: "menuitem",
-            l10nID: "doi-fix-menu-validate",
-            onCommand: () => runMenuCommand("validateDOIForSelectedItems"),
-          },
-        ],
-      },
-    ],
-  });
 }
 
 async function runMenuCommand(methodName) {
@@ -161,6 +103,7 @@ function registerDOMMenuItems(win) {
   let rootMenu = createMenuElement(doc, "menu");
   rootMenu.id = ROOT_MENU_ID;
   rootMenu.setAttribute("label", "Zotero DOI Fix");
+  rootMenu.setAttribute("data-l10n-id", "doi-fix-menu-root");
   rootMenu.setAttribute("class", "menu-iconic");
   rootMenu.setAttribute("image", addonData.rootURI + MENU_ICON);
 
@@ -171,6 +114,7 @@ function registerDOMMenuItems(win) {
   popup.appendChild(createDOMMenuItem(doc, "doi-fix-validate", "Validate DOI", "validateDOIForSelectedItems"));
 
   rootMenu.appendChild(popup);
+  // Keep native child-node indexes intact and leave this menu outside automatic grouping.
   menu.appendChild(rootMenu);
 }
 
@@ -193,6 +137,7 @@ function createDOMMenuItem(doc, id, label, methodName) {
   let menuItem = createMenuElement(doc, "menuitem");
   menuItem.id = id;
   menuItem.setAttribute("label", label);
+  menuItem.setAttribute("data-l10n-id", id.replace("doi-fix-", "doi-fix-menu-"));
   menuItem.addEventListener("command", () => runMenuCommand(methodName));
   return menuItem;
 }
@@ -205,14 +150,12 @@ function createMenuElement(doc, tagName) {
   return doc.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", tagName);
 }
 
-function loadFTLIntoOpenWindows() {
-  for (let win of Zotero.getMainWindows()) {
-    loadFTL(win);
-  }
-}
-
 function loadFTL(win) {
-  if (win.MozXULElement) {
-    win.MozXULElement.insertFTLIfNeeded(FTL_FILE);
+  try {
+    if (win.MozXULElement) {
+      win.MozXULElement.insertFTLIfNeeded(FTL_FILE);
+    }
+  } catch (e) {
+    Zotero.logError(e);
   }
 }

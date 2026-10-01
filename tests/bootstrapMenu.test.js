@@ -178,6 +178,8 @@ function matchesSelector(element, selector) {
 
 function loadBootstrap() {
   const context = {
+    URLSearchParams,
+    errors: [],
     Zotero: {
       debug() {},
       logError() {},
@@ -185,8 +187,15 @@ function loadBootstrap() {
         return [];
       },
     },
-    Services: {},
+    Services: {
+      scriptloader: {
+        loadSubScript(_uri, scope) {
+          vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "chrome", "content", "doiManager.js"), "utf8"), scope);
+        },
+      },
+    },
   };
+  context.Zotero.logError = (error) => context.errors.push(error);
 
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(bootstrapPath, "utf8"), context);
@@ -227,51 +236,6 @@ function makeMenu() {
   return { menu, attachNote, removeItem, customSeparator, doiMenu };
 }
 
-function testManagedMenuPreservesNativeIndexes() {
-  const context = loadBootstrap();
-  const { menu, attachNote, removeItem, customSeparator, doiMenu } = makeMenu();
-  const originalNodes = menu.childNodes.slice();
-  const win = { document: menu.ownerDocument, setTimeout: (callback) => callback() };
-  let registration;
-  context.addonData = { id: "doi-fix@zotero.org", rootURI: "resource://doi-fix/" };
-  context.Zotero.getMainWindows = () => [win];
-  context.Zotero.MenuManager = {
-    registerMenu(options) { registration = options; return "doi-fix-item-menu"; },
-    unregisterMenu() { doiMenu.remove(); customSeparator.remove(); },
-  };
-
-  context.registerMenuItems();
-  context.onMainWindowLoad({ window: win });
-
-  // Zotero updates native actions by childNodes index on each menu rebuild.
-  for (const count of [1, 2, 1]) {
-    const label = count === 1 ? "Remove Item from Collection..." : "Remove Items from Collection...";
-    menu.childNodes[3].removeAttribute("data-l10n-id");
-    menu.childNodes[3].setAttribute("label", label);
-    menu.listeners.get("popupshowing")?.({ target: menu });
-    assert.strictEqual(doiMenu.getAttribute("label"), "Zotero DOI Fix");
-    assert.strictEqual(doiMenu.getAttribute("data-l10n-id"), "doi-fix-menu-root");
-    assert.strictEqual(removeItem.getAttribute("label"), label);
-    assert.strictEqual(menu.childNodes[2], attachNote);
-    assert.deepStrictEqual(menu.childNodes, originalNodes);
-    assert.strictEqual(customSeparator.hidden, false);
-    assert.strictEqual(menu.ownerDocument.getElementById("doi-fix-position-separator"), null);
-  }
-
-  assert.strictEqual(registration.pluginID, "doi-fix@zotero.org");
-  assert.strictEqual(registration.menus[0].l10nID, "doi-fix-menu-root");
-  const methods = ["retrieveDOIForSelectedItems", "updateDOIForSelectedItems", "validateDOIForSelectedItems"];
-  const commands = [];
-  for (const method of methods) context.doiManager[method] = () => commands.push(method);
-  for (const item of registration.menus[0].menus) item.onCommand();
-  assert.deepStrictEqual(commands, methods);
-
-  context.onMainWindowUnload({ window: win });
-  context.unregisterMenuItems();
-  assert.deepStrictEqual(menu.childNodes, originalNodes.slice(0, 4));
-  assert.strictEqual(menu.listeners.size, 0);
-}
-
 function testDOMFallbackPreservesNativeIndexesAndCleansUp() {
   const context = loadBootstrap();
   const { menu, customSeparator, doiMenu } = makeMenu();
@@ -297,11 +261,72 @@ function testDOMFallbackPreservesNativeIndexesAndCleansUp() {
   assert.strictEqual(menu.listeners.size, 0);
 }
 
-function run() {
-  for (const test of [testManagedMenuPreservesNativeIndexes, testDOMFallbackPreservesNativeIndexesAndCleansUp]) {
-    test();
+function testMenuIsVisibleWithoutManagedMenuRendering() {
+  const context = loadBootstrap();
+  const { menu, customSeparator, doiMenu } = makeMenu();
+  doiMenu.remove();
+  customSeparator.remove();
+  const nativeNodes = menu.childNodes.slice();
+  const win = { document: menu.ownerDocument };
+  context.addonData = { id: "doi-fix@zotero.org", rootURI: "resource://doi-fix/" };
+  context.Zotero.getMainWindows = () => [win];
+  context.Zotero.MenuManager = { registerMenu: () => "registered-but-not-rendered" };
+
+  context.registerMenuItems();
+  const root = win.document.getElementById("doi-fix-root-menu");
+  assert.ok(root, "DOI Fix must have a visible menu even when managed menus have not rendered");
+  for (const count of [1, 2, 1]) {
+    menu.childNodes[3].removeAttribute("data-l10n-id");
+    menu.childNodes[3].setAttribute("label", count === 1 ? "Remove Item from Collection..." : "Remove Items from Collection...");
+    assert.deepStrictEqual(menu.childNodes.slice(0, 4), nativeNodes);
+    assert.strictEqual(root.getAttribute("label"), "Zotero DOI Fix");
+    assert.strictEqual(root.getAttribute("data-l10n-id"), "doi-fix-menu-root");
+  }
+  context.onMainWindowLoad({ window: win });
+  assert.strictEqual(menu.childNodes.length, 6);
+
+  const methods = ["retrieveDOIForSelectedItems", "updateDOIForSelectedItems", "validateDOIForSelectedItems"];
+  const commands = [];
+  for (const method of methods) context.doiManager[method] = () => commands.push(method);
+  for (const item of root.childNodes[0].childNodes) item.listeners.get("command")();
+  assert.deepStrictEqual(commands, methods);
+  context.onMainWindowUnload({ window: win });
+  context.unregisterMenuItems();
+  assert.deepStrictEqual(menu.childNodes, nativeNodes);
+}
+
+async function testFullStartupAndLateWindowWithLocalizationFailure() {
+  for (const lateWindow of [false, true]) {
+    const context = loadBootstrap();
+    const { menu, customSeparator, doiMenu } = makeMenu();
+    doiMenu.remove();
+    customSeparator.remove();
+    const nativeNodes = menu.childNodes.slice();
+    const win = {
+      document: menu.ownerDocument,
+      MozXULElement: {
+        insertFTLIfNeeded() { if (lateWindow) throw new Error("Locale resource unavailable"); },
+      },
+    };
+    context.Zotero.getMainWindows = () => lateWindow ? [] : [win];
+    context.Zotero.MenuManager = { registerMenu() { throw new Error("Managed registration must not be used"); } };
+    await context.startup({ id: "doi-fix@zotero.org", version: "1.1.8", rootURI: "resource://doi-fix/" });
+    if (lateWindow) context.onMainWindowLoad({ window: win });
+    assert.strictEqual(typeof context.doiManager.retrieveDOIForSelectedItems, "function");
+    assert.strictEqual(win.document.getElementById("doi-fix-root-menu").getAttribute("label"), "Zotero DOI Fix");
+    assert.deepStrictEqual(menu.childNodes.slice(0, 4), nativeNodes);
+    assert.strictEqual(context.errors.length, lateWindow ? 1 : 0);
+    context.onMainWindowUnload({ window: win });
+    context.shutdown();
+    assert.deepStrictEqual(menu.childNodes, nativeNodes);
+  }
+}
+
+async function run() {
+  for (const test of [testMenuIsVisibleWithoutManagedMenuRendering, testDOMFallbackPreservesNativeIndexesAndCleansUp, testFullStartupAndLateWindowWithLocalizationFailure]) {
+    await test();
     console.log(`PASS ${test.name}`);
   }
 }
 
-run();
+run().catch((error) => { console.error(error); process.exitCode = 1; });

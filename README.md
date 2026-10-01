@@ -116,7 +116,7 @@ zotero-doi-fix/
 ├── icons/                # Plugin icons
 │   ├── icon@48.png
 │   └── icon@96.png
-├── locale/               # Menu labels for Zotero 8/9/10 MenuManager
+├── locale/               # Localized menu labels
 │   ├── en-US/
 │   └── zh-CN/
 └── chrome/
@@ -162,6 +162,11 @@ MIT License - see [LICENSE](LICENSE) file for details
 If you encounter any issues or have suggestions, please [open an issue](https://github.com/pandaAIGC/zotero-doi-fix/issues).
 
 ## Changelog
+
+### Version 1.1.8 (2026-10-01)
+- Use a directly registered DOI Fix context submenu on all supported Zotero versions, with unique DOM IDs and no automatic "More" grouping dependency.
+- Append plugin entries after native actions without changing their indexes; keep localized labels with literal fallback text.
+- Add checks for menu visibility when managed menus do not render, command dispatch, and full plugin startup.
 
 ### Version 1.1.7 (2026-10-01)
 - Fixed [#2](https://github.com/pandaAIGC/zotero-doi-fix/issues/2): the DOI Fix submenu could be relabeled as "Remove Item from Collection..." on Zotero 10.0.3, with a blank entry beneath it.
