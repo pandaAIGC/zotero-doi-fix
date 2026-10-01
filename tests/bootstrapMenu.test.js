@@ -32,6 +32,7 @@ class FakeElement {
     this.ownerDocument = options.ownerDocument || null;
     this.classList = new FakeClassList(options.classes || []);
     this.hidden = !!options.hidden;
+    this.listeners = new Map();
 
     if (options.l10nID) {
       this.attributes["data-l10n-id"] = options.l10nID;
@@ -64,6 +65,26 @@ class FakeElement {
     }
 
     return this.attributes[name] || null;
+  }
+
+  removeAttribute(name) {
+    delete this.attributes[name];
+  }
+
+  addEventListener(name, listener) {
+    this.listeners.set(name, listener);
+  }
+
+  removeEventListener(name) {
+    this.listeners.delete(name);
+  }
+
+  remove() {
+    if (this.parentNode) {
+      const index = this.parentNode.childNodes.indexOf(this);
+      this.parentNode.childNodes.splice(index, 1);
+      this.parentNode = null;
+    }
   }
 
   appendChild(child) {
@@ -190,39 +211,97 @@ function makeMenu() {
     classes: ["zotero-custom-menu-item", "zotero-custom-menu-group-separator"],
     ownerDocument: doc,
   });
+  const removeItem = new FakeElement("menuitem", { ownerDocument: doc });
   const doiMenu = new FakeElement("menu", {
+    id: "doi-fix-item-menu-0",
     classes: ["zotero-custom-menu-item", "doi-fix-item-menu"],
     l10nID: "doi-fix-menu-root",
     ownerDocument: doc,
   });
+  doiMenu.setAttribute("label", "Zotero DOI Fix");
 
-  for (const element of [showInLibrary, topSeparator, attachNote, customSeparator, doiMenu]) {
+  for (const element of [showInLibrary, topSeparator, attachNote, removeItem, customSeparator, doiMenu]) {
     menu.appendChild(element);
   }
 
-  return { menu, attachNote, customSeparator, doiMenu };
+  return { menu, attachNote, removeItem, customSeparator, doiMenu };
 }
 
-function testPositionDOIFixMenuMovesMenuBeforeAttachNote() {
+function testManagedMenuPreservesNativeIndexes() {
   const context = loadBootstrap();
-  const { menu, attachNote, customSeparator, doiMenu } = makeMenu();
+  const { menu, attachNote, removeItem, customSeparator, doiMenu } = makeMenu();
+  const originalNodes = menu.childNodes.slice();
+  const win = { document: menu.ownerDocument, setTimeout: (callback) => callback() };
+  let registration;
+  context.addonData = { id: "doi-fix@zotero.org", rootURI: "resource://doi-fix/" };
+  context.Zotero.getMainWindows = () => [win];
+  context.Zotero.MenuManager = {
+    registerMenu(options) { registration = options; return "doi-fix-item-menu"; },
+    unregisterMenu() { doiMenu.remove(); customSeparator.remove(); },
+  };
 
-  context.positionDOIFixMenu(menu);
+  context.registerMenuItems();
+  context.onMainWindowLoad({ window: win });
 
-  const order = menu.childNodes.map((element) => {
-    if (element === doiMenu) return "doi";
-    if (element === attachNote) return "attach";
-    if (element.id === "doi-fix-position-separator") return "doi-separator";
-    return element.tagName;
-  });
+  // Zotero updates native actions by childNodes index on each menu rebuild.
+  for (const count of [1, 2, 1]) {
+    const label = count === 1 ? "Remove Item from Collection..." : "Remove Items from Collection...";
+    menu.childNodes[3].removeAttribute("data-l10n-id");
+    menu.childNodes[3].setAttribute("label", label);
+    menu.listeners.get("popupshowing")?.({ target: menu });
+    assert.strictEqual(doiMenu.getAttribute("label"), "Zotero DOI Fix");
+    assert.strictEqual(doiMenu.getAttribute("data-l10n-id"), "doi-fix-menu-root");
+    assert.strictEqual(removeItem.getAttribute("label"), label);
+    assert.strictEqual(menu.childNodes[2], attachNote);
+    assert.deepStrictEqual(menu.childNodes, originalNodes);
+    assert.strictEqual(customSeparator.hidden, false);
+    assert.strictEqual(menu.ownerDocument.getElementById("doi-fix-position-separator"), null);
+  }
 
-  assert.deepStrictEqual(order.slice(2, 5), ["doi-separator", "doi", "attach"]);
-  assert.strictEqual(customSeparator.hidden, true);
+  assert.strictEqual(registration.pluginID, "doi-fix@zotero.org");
+  assert.strictEqual(registration.menus[0].l10nID, "doi-fix-menu-root");
+  const methods = ["retrieveDOIForSelectedItems", "updateDOIForSelectedItems", "validateDOIForSelectedItems"];
+  const commands = [];
+  for (const method of methods) context.doiManager[method] = () => commands.push(method);
+  for (const item of registration.menus[0].menus) item.onCommand();
+  assert.deepStrictEqual(commands, methods);
+
+  context.onMainWindowUnload({ window: win });
+  context.unregisterMenuItems();
+  assert.deepStrictEqual(menu.childNodes, originalNodes.slice(0, 4));
+  assert.strictEqual(menu.listeners.size, 0);
+}
+
+function testDOMFallbackPreservesNativeIndexesAndCleansUp() {
+  const context = loadBootstrap();
+  const { menu, customSeparator, doiMenu } = makeMenu();
+  doiMenu.remove();
+  customSeparator.remove();
+  const originalNodes = menu.childNodes.slice();
+  const win = { document: menu.ownerDocument, setTimeout: (callback) => callback() };
+  context.addonData = { id: "doi-fix@zotero.org", rootURI: "resource://doi-fix/" };
+  context.Zotero.getMainWindows = () => [win];
+
+  context.registerMenuItems();
+  context.onMainWindowLoad({ window: win });
+  assert.deepStrictEqual(menu.childNodes.slice(0, 4), originalNodes);
+  assert.strictEqual(menu.childNodes.length, 6);
+  const root = win.document.getElementById("doi-fix-root-menu");
+  assert.strictEqual(root.getAttribute("label"), "Zotero DOI Fix");
+  const ids = walk(menu).map((element) => element.id).filter(Boolean);
+  assert.strictEqual(new Set(ids).size, ids.length);
+
+  context.onMainWindowUnload({ window: win });
+  context.unregisterMenuItems();
+  assert.deepStrictEqual(menu.childNodes, originalNodes);
+  assert.strictEqual(menu.listeners.size, 0);
 }
 
 function run() {
-  testPositionDOIFixMenuMovesMenuBeforeAttachNote();
-  console.log("PASS testPositionDOIFixMenuMovesMenuBeforeAttachNote");
+  for (const test of [testManagedMenuPreservesNativeIndexes, testDOMFallbackPreservesNativeIndexesAndCleansUp]) {
+    test();
+    console.log(`PASS ${test.name}`);
+  }
 }
 
 run();

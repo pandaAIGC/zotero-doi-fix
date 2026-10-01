@@ -163,6 +163,11 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ## Changelog
 
+### Version 1.1.7 (2026-10-01)
+- Fixed [#2](https://github.com/pandaAIGC/zotero-doi-fix/issues/2): the DOI Fix submenu could be relabeled as "Remove Item from Collection..." on Zotero 10.0.3, with a blank entry beneath it.
+- Removed custom menu repositioning so native item indexes stay intact and Zotero MenuManager controls menu placement and separators.
+- Added regression checks for repeated single/multiple-item menu rebuilds and Zotero 7 fallback cleanup.
+
 ### Version 1.1.6 (2026-07-05)
 - Updated plugin compatibility metadata, update manifest, and documentation for Zotero 10.
 - Added a regression test for manifest/update compatibility metadata so release packages stay aligned.
