@@ -95,6 +95,20 @@ Use this feature to **verify the validity** of existing DOIs:
 
 This plugin uses the [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/) to retrieve and validate DOIs. No API key is required for basic usage.
 
+## Troubleshooting
+
+### The context menu entry is missing or appears very late
+
+Zotero starts plugins one after another, in the order they are listed in `extensions.json`, and waits for each plugin's `startup()` to finish. Updating a plugin moves it to the end of that list, so with dozens of plugins DOI Fix can be the last one started and only registers its menu after every plugin before it has finished loading.
+
+With Zotero fully closed, run this once to move DOI Fix to the front, then start Zotero:
+
+```bash
+node tools/pin-first.js
+```
+
+Pass the profile directory as an argument if it is not found automatically. A backup is saved as `extensions.json.bak-doifix`. Updating DOI Fix moves it to the end again, so run the command again after an update.
+
 ## Compatibility
 
 - **Zotero 7**: ✅ Supported
@@ -162,6 +176,10 @@ MIT License - see [LICENSE](LICENSE) file for details
 If you encounter any issues or have suggestions, please [open an issue](https://github.com/pandaAIGC/zotero-doi-fix/issues).
 
 ## Changelog
+
+### Version 1.1.9 (2026-10-02)
+- Register the menu when a main window that was still loading finishes loading, and again when the Zotero UI is ready; pending listeners are cancelled on shutdown.
+- Add `tools/pin-first.js`, which moves DOI Fix to the front of Zotero's plugin startup order. The menu code itself works on Zotero 10.0.5; it was only registered late because DOI Fix was started last of 39 plugins.
 
 ### Version 1.1.8 (2026-10-01)
 - Use a directly registered DOI Fix context submenu on all supported Zotero versions, with unique DOM IDs and no automatic "More" grouping dependency.

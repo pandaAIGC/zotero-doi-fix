@@ -9,6 +9,7 @@ var MENU_ICON = "icons/icon@48.png";
 var ITEM_MENU_ID = "zotero-itemmenu";
 var ROOT_MENU_ID = "doi-fix-root-menu";
 var DOM_SEPARATOR_ID = "doi-fix-separator";
+var windowLoadHandlers = new Map();
 
 function install(data, reason) {
   Zotero.debug("DOI Fix: Installing");
@@ -28,6 +29,13 @@ async function startup({ id, version, rootURI }, reason) {
 
     await doiManager.init(addonData);
     registerMenuItems();
+    // The host installs window listeners after startup; backfill the first UI.
+    if (Zotero.uiReadyPromise) {
+      let startedAddon = addonData;
+      Zotero.uiReadyPromise.then(() => {
+        if (addonData === startedAddon) registerMenuItems();
+      }).catch((e) => Zotero.logError(e));
+    }
 
     Zotero.debug("DOI Fix: Started successfully");
   } catch (e) {
@@ -72,6 +80,10 @@ function registerMenuItems() {
 }
 
 function unregisterMenuItems() {
+  for (let [win, handler] of windowLoadHandlers) {
+    win.removeEventListener("load", handler);
+  }
+  windowLoadHandlers.clear();
   for (let win of Zotero.getMainWindows()) {
     unregisterDOMMenuItems(win);
   }
@@ -87,6 +99,19 @@ async function runMenuCommand(methodName) {
 }
 
 function registerDOMMenuItems(win) {
+  if (!addonData || win.closed) return;
+  if (win.document.readyState === "loading") {
+    if (!windowLoadHandlers.has(win)) {
+      let handler = () => {
+        win.removeEventListener("load", handler);
+        windowLoadHandlers.delete(win);
+        registerDOMMenuItems(win);
+      };
+      windowLoadHandlers.set(win, handler);
+      win.addEventListener("load", handler, { once: true });
+    }
+    return;
+  }
   loadFTL(win);
 
   let doc = win.document;
@@ -119,6 +144,11 @@ function registerDOMMenuItems(win) {
 }
 
 function unregisterDOMMenuItems(win) {
+  let handler = windowLoadHandlers.get(win);
+  if (handler) {
+    win.removeEventListener("load", handler);
+    windowLoadHandlers.delete(win);
+  }
   let doc = win.document;
 
   for (let id of [

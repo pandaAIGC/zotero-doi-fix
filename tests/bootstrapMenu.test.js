@@ -322,8 +322,63 @@ async function testFullStartupAndLateWindowWithLocalizationFailure() {
   }
 }
 
+async function testStartupRegistersMenuWhenUIBecomesReady() {
+  const context = loadBootstrap();
+  const { menu, customSeparator, doiMenu } = makeMenu();
+  doiMenu.remove();
+  customSeparator.remove();
+  const win = { document: menu.ownerDocument };
+  let resolveReady;
+  context.Zotero.uiReadyPromise = new Promise((resolve) => { resolveReady = resolve; });
+  context.Zotero.getMainWindows = () => [];
+
+  // Zotero calls startup before installing its main-window listener.
+  await context.startup({ id: "doi-fix@zotero.org", version: "1.1.8", rootURI: "resource://doi-fix/" });
+  context.Zotero.getMainWindows = () => [win];
+  resolveReady();
+  await context.Zotero.uiReadyPromise;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(win.document.getElementById("doi-fix-root-menu"), "The first window must be registered after UI readiness without relying on a missed window-open event");
+  context.shutdown();
+  assert.strictEqual(win.document.getElementById("doi-fix-root-menu"), null);
+}
+
+async function testLoadingWindowAndShutdownBeforeReadiness() {
+  for (const shutdownEarly of [false, true]) {
+    const context = loadBootstrap();
+    const { menu, customSeparator, doiMenu } = makeMenu();
+    doiMenu.remove();
+    customSeparator.remove();
+    const doc = menu.ownerDocument;
+    doc.root = null;
+    doc.readyState = "loading";
+    const listeners = new Map();
+    const win = {
+      document: doc,
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener: (name) => listeners.delete(name),
+    };
+    let resolveReady;
+    context.Zotero.uiReadyPromise = new Promise((resolve) => { resolveReady = resolve; });
+    context.Zotero.getMainWindows = () => [win];
+    await context.startup({ id: "doi-fix@zotero.org", version: "1.1.8", rootURI: "resource://doi-fix/" });
+    assert.ok(listeners.has("load"), "An already-open loading window needs its own load listener");
+    if (shutdownEarly) context.shutdown();
+    doc.root = menu;
+    doc.readyState = "complete";
+    listeners.get("load")?.();
+    resolveReady();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(!!doc.getElementById("doi-fix-root-menu"), !shutdownEarly);
+    assert.strictEqual(menu.childNodes.length, shutdownEarly ? 4 : 6);
+    context.shutdown();
+    assert.strictEqual(listeners.size, 0);
+    assert.strictEqual(context.errors.length, 0);
+  }
+}
+
 async function run() {
-  for (const test of [testMenuIsVisibleWithoutManagedMenuRendering, testDOMFallbackPreservesNativeIndexesAndCleansUp, testFullStartupAndLateWindowWithLocalizationFailure]) {
+  for (const test of [testMenuIsVisibleWithoutManagedMenuRendering, testDOMFallbackPreservesNativeIndexesAndCleansUp, testFullStartupAndLateWindowWithLocalizationFailure, testStartupRegistersMenuWhenUIBecomesReady, testLoadingWindowAndShutdownBeforeReadiness]) {
     await test();
     console.log(`PASS ${test.name}`);
   }

@@ -12,7 +12,7 @@ const addonID = "doi-fix@zotero.org";
 const update = updates.addons[addonID].updates[0];
 const xpiHash = crypto.createHash("sha256").update(xpi).digest("hex");
 
-assert.strictEqual(manifest.version, "1.1.8");
+assert.strictEqual(manifest.version, "1.1.9");
 assert.strictEqual(manifest.applications.zotero.id, addonID);
 assert.strictEqual(manifest.applications.zotero.strict_min_version, "7.0");
 assert.strictEqual(manifest.applications.zotero.strict_max_version, "10.*");
