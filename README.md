@@ -99,15 +99,11 @@ This plugin uses the [Crossref REST API](https://www.crossref.org/documentation/
 
 ### The context menu entry is missing or appears very late
 
-Zotero starts plugins one after another, in the order they are listed in `extensions.json`, and waits for each plugin's `startup()` to finish. Updating a plugin moves it to the end of that list, so with dozens of plugins DOI Fix can be the last one started and only registers its menu after every plugin before it has finished loading.
+Version 1.1.9 registers the menu for existing windows, when a loading window finishes loading, and when the Zotero UI becomes ready. Normal installation and updates do not require running a Node.js command.
 
-With Zotero fully closed, run this once to move DOI Fix to the front, then start Zotero:
+Zotero awaits each plugin's `startup()` in sequence, so another plugin's slow startup can delay DOI Fix. Changing startup order improved menu availability in one tested profile, but the exact cause of that profile's delay has not been established from startup logs.
 
-```bash
-node tools/pin-first.js
-```
-
-Pass the profile directory as an argument if it is not found automatically. A backup is saved as `extensions.json.bak-doifix`. Updating DOI Fix moves it to the end again, so run the command again after an update.
+`tools/pin-first.js` is an optional diagnostic workaround that edits Zotero's internal `extensions.json`; it is not a routine installation or update step. If the menu is already appearing promptly, no further startup-order changes are needed. For a recurring delay, report the Zotero/plugin versions and relevant startup debug output in an issue.
 
 ## Compatibility
 
@@ -179,7 +175,7 @@ If you encounter any issues or have suggestions, please [open an issue](https://
 
 ### Version 1.1.9 (2026-10-02)
 - Register the menu when a main window that was still loading finishes loading, and again when the Zotero UI is ready; pending listeners are cancelled on shutdown.
-- Add `tools/pin-first.js`, which moves DOI Fix to the front of Zotero's plugin startup order. The menu code itself works on Zotero 10.0.5; it was only registered late because DOI Fix was started last of 39 plugins.
+- Add an optional startup-order diagnostic helper. Menu registration was tested on Zotero 10.0.5; changing startup order improved availability in one profile, but this helper is not required for normal installation or updates.
 
 ### Version 1.1.8 (2026-10-01)
 - Use a directly registered DOI Fix context submenu on all supported Zotero versions, with unique DOM IDs and no automatic "More" grouping dependency.

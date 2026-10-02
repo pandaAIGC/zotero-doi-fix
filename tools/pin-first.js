@@ -1,6 +1,5 @@
-// Move DOI Fix to the front of extensions.json so Zotero starts it first.
-// Zotero awaits each plugin's startup() in this file's order, and every update
-// moves a plugin to the end, so with many plugins its menu appears late or never.
+// Optional diagnostic workaround, not a routine installation or update step.
+// Move DOI Fix to the front of extensions.json to investigate startup delays.
 // Usage (Zotero must be closed): node tools/pin-first.js [profile-dir]
 const fs = require("fs");
 const os = require("os");
